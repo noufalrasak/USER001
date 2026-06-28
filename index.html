@@ -1,0 +1,241 @@
+<html>
+<body>
+<!--
+  ══════════════════════════════════════════════════════════════
+  TEMPLATES.HTML — RSVP FORM SECTION
+  
+  Paste this into your wedding card HTML wherever the RSVP
+  form should appear. Replace SCRIPT_URL with your deployed
+  Apps Script Web App URL, and USER_ID with the actual
+  customer's USER_ID (hardcoded per card, e.g. "USER001").
+  ══════════════════════════════════════════════════════════════
+-->
+
+<!-- CONFIG — set these two for each customer's card -->
+<script>
+  var SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+  var USER_ID    = 'USER001'; // ← Replace with this customer's USER_ID
+</script>
+
+<!-- RSVP FORM -->
+<section id="rsvp-section" style="
+  background: #faf8f4;
+  padding: 60px 24px;
+  font-family: 'Inter', sans-serif;
+">
+  <div style="max-width: 520px; margin: 0 auto;">
+
+    <!-- Heading -->
+    <div style="text-align:center; margin-bottom:36px;">
+      <div style="font-size:0.7rem; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; color:#c9a84c; margin-bottom:10px;">
+        ✦ Kindly Reply ✦
+      </div>
+      <h2 style="font-family:'Cormorant Garamond', Georgia, serif; font-size:2.2rem; font-weight:600; color:#1a1a2e; margin:0;">
+        Will you be joining us?
+      </h2>
+      <p style="color:#8a8a9a; font-size:0.85rem; margin-top:8px;">
+        Please fill in your details below
+      </p>
+    </div>
+
+    <!-- Form Card -->
+    <div id="rsvp-form-card" style="
+      background: #fff;
+      border-radius: 16px;
+      padding: 36px 32px;
+      box-shadow: 0 4px 24px rgba(26,26,46,0.08);
+    ">
+
+      <!-- Guest Name -->
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:0.7rem; font-weight:600; color:#8a8a9a; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">
+          Your Full Name *
+        </label>
+        <input id="rsvp-name" type="text" placeholder="Enter your name"
+          style="width:100%; padding:13px 16px; border:1.5px solid #e8e2da; border-radius:8px; font-family:inherit; font-size:0.9rem; outline:none; background:#faf8f4; transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='#c9a84c'; this.style.background='#fff';"
+          onblur="this.style.borderColor='#e8e2da'; this.style.background='#faf8f4';">
+      </div>
+
+      <!-- Number of Guests -->
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:0.7rem; font-weight:600; color:#8a8a9a; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">
+          Number of Guests (including yourself) *
+        </label>
+        <input id="rsvp-guests" type="number" min="1" max="20" value="1" placeholder="1"
+          style="width:100%; padding:13px 16px; border:1.5px solid #e8e2da; border-radius:8px; font-family:inherit; font-size:0.9rem; outline:none; background:#faf8f4; transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='#c9a84c'; this.style.background='#fff';"
+          onblur="this.style.borderColor='#e8e2da'; this.style.background='#faf8f4';">
+      </div>
+
+      <!-- Attend Status -->
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:0.7rem; font-weight:600; color:#8a8a9a; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">
+          Will you be attending? *
+        </label>
+        <div style="display:flex; gap:12px;">
+          <label id="opt-attending" onclick="selectStatus('Attending')" style="
+            flex:1; padding:14px; border:1.5px solid #e8e2da; border-radius:10px;
+            cursor:pointer; text-align:center; transition:all 0.2s;
+            font-size:0.88rem; font-weight:500; color:#1a1a2e;
+          ">
+            ✅ Attending
+          </label>
+          <label id="opt-not" onclick="selectStatus('Not Attending')" style="
+            flex:1; padding:14px; border:1.5px solid #e8e2da; border-radius:10px;
+            cursor:pointer; text-align:center; transition:all 0.2s;
+            font-size:0.88rem; font-weight:500; color:#1a1a2e;
+          ">
+            ❌ Not Attending
+          </label>
+        </div>
+        <input type="hidden" id="rsvp-status" value="">
+      </div>
+
+      <!-- Message -->
+      <div style="margin-bottom:28px;">
+        <label style="display:block; font-size:0.7rem; font-weight:600; color:#8a8a9a; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">
+          Message to the Couple <span style="font-weight:400; text-transform:none; letter-spacing:0;">(optional)</span>
+        </label>
+        <textarea id="rsvp-message" rows="3" placeholder="Share your wishes for the couple…"
+          style="width:100%; padding:13px 16px; border:1.5px solid #e8e2da; border-radius:8px; font-family:inherit; font-size:0.88rem; outline:none; background:#faf8f4; resize:vertical; transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='#c9a84c'; this.style.background='#fff';"
+          onblur="this.style.borderColor='#e8e2da'; this.style.background='#faf8f4';"></textarea>
+      </div>
+
+      <!-- Error message -->
+      <div id="rsvp-error" style="display:none; background:#f8d7da; color:#721c24; padding:11px 14px; border-radius:8px; font-size:0.83rem; margin-bottom:16px;"></div>
+
+      <!-- Submit Button -->
+      <button id="rsvp-submit-btn" onclick="submitRsvpForm()"
+        style="
+          width:100%; padding:15px; background:#1a1a2e; color:#f0e4c0;
+          border:none; border-radius:10px; font-family:inherit; font-size:0.9rem;
+          font-weight:600; cursor:pointer; letter-spacing:0.04em;
+          transition:all 0.2s;
+        "
+        onmouseover="this.style.background='#2d2d4e'; this.style.transform='translateY(-1px)';"
+        onmouseout="this.style.background='#1a1a2e'; this.style.transform='translateY(0)';">
+        Send RSVP →
+      </button>
+    </div><!-- /form-card -->
+
+    <!-- Success State (hidden until submitted) -->
+    <div id="rsvp-success" style="
+      display:none;
+      background:#fff; border-radius:16px; padding:48px 32px;
+      box-shadow:0 4px 24px rgba(26,26,46,0.08);
+      text-align:center;
+    ">
+      <div style="font-size:3rem; margin-bottom:16px;">🎊</div>
+      <h3 style="font-family:'Cormorant Garamond',Georgia,serif; font-size:1.8rem; color:#1a1a2e; margin-bottom:8px;">
+        Thank you!
+      </h3>
+      <p style="color:#8a8a9a; font-size:0.88rem; margin-bottom:20px;" id="rsvp-success-msg">
+        Your RSVP has been received.
+      </p>
+      <div style="width:48px; height:1px; background:#c9a84c; margin:0 auto;"></div>
+    </div>
+
+  </div><!-- /container -->
+</section>
+
+<script>
+// ── Status toggle ──
+var selectedStatus = '';
+
+function selectStatus(val) {
+  selectedStatus = val;
+  document.getElementById('rsvp-status').value = val;
+
+  var optA = document.getElementById('opt-attending');
+  var optN = document.getElementById('opt-not');
+
+  if (val === 'Attending') {
+    optA.style.background      = '#d4edda';
+    optA.style.borderColor     = '#3d8c6e';
+    optA.style.color           = '#155724';
+    optN.style.background      = '#faf8f4';
+    optN.style.borderColor     = '#e8e2da';
+    optN.style.color           = '#1a1a2e';
+  } else {
+    optN.style.background      = '#f8d7da';
+    optN.style.borderColor     = '#c0392b';
+    optN.style.color           = '#721c24';
+    optA.style.background      = '#faf8f4';
+    optA.style.borderColor     = '#e8e2da';
+    optA.style.color           = '#1a1a2e';
+  }
+}
+
+// ── Submit ──
+async function submitRsvpForm() {
+  var name     = document.getElementById('rsvp-name').value.trim();
+  var guests   = document.getElementById('rsvp-guests').value;
+  var status   = selectedStatus;
+  var message  = document.getElementById('rsvp-message').value.trim();
+  var errEl    = document.getElementById('rsvp-error');
+  var btn      = document.getElementById('rsvp-submit-btn');
+
+  errEl.style.display = 'none';
+
+  if (!name) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Please enter your name.';
+    return;
+  }
+  if (!status) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Please select whether you are attending.';
+    return;
+  }
+  if (!guests || parseInt(guests) < 1) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Please enter the number of guests.';
+    return;
+  }
+
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+
+  try {
+    var res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action:       'submitRsvp',
+        userid:       USER_ID,
+        name:         name,
+        guestsNo:     parseInt(guests),
+        attendStatus: status,
+        message:      message
+      })
+    });
+    var data = await res.json();
+
+    if (data.success) {
+      document.getElementById('rsvp-form-card').style.display = 'none';
+      var successEl = document.getElementById('rsvp-success');
+      successEl.style.display = 'block';
+      document.getElementById('rsvp-success-msg').textContent =
+        status === 'Attending'
+          ? 'We can\'t wait to celebrate with you, ' + name + '!'
+          : 'Thank you for letting us know, ' + name + '. You\'ll be missed!';
+    } else {
+      errEl.style.display = 'block';
+      errEl.textContent = 'Something went wrong: ' + (data.error || 'Please try again.');
+      btn.textContent = 'Send RSVP →';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    }
+  } catch(e) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Connection error. Please try again shortly.';
+    btn.textContent = 'Send RSVP →';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+</script>
+</body></html>
