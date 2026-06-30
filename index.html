@@ -3,7 +3,7 @@
 <!--
   ══════════════════════════════════════════════════════════════
   TEMPLATES.HTML — RSVP FORM SECTION
-  
+
   Paste this into your wedding card HTML wherever the RSVP
   form should appear. Replace SCRIPT_URL with your deployed
   Apps Script Web App URL, and USER_ID with the actual
@@ -11,10 +11,18 @@
   ══════════════════════════════════════════════════════════════
 -->
 
-<!-- CONFIG — set these two for each customer's card -->
+<style>
+  /* Prevents input/textarea overflow on all browsers */
+  #rsvp-section * { box-sizing: border-box; }
+  /* Honeypot — invisible to humans, bots will fill this */
+  #rsvp-website { display:none !important; visibility:hidden; position:absolute; left:-9999px; }
+</style>
+
+<!-- CONFIG — set these two values for each customer's card -->
 <script>
-  var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzsZqxi7N9LGaqlhd3k7LsgJj9YeTnES3elcRGI59d9qjLuLxyJ3WC4ULGTcF0HQDQX/exec';
-  var USER_ID    = 'USER001'; // ← Replace with this customer's USER_ID
+  var SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbw7f4HjRQltBvEmt-aoGulDPetBGgusae6QM3IAoinb7QdM0YEcMphHdxoQmiywIjti7w/exec';
+  var USER_ID        = 'USER001'; // ← Replace with this customer's USER_ID
+  var PAGE_LOAD_TIME = Date.now(); // Bot timing check
 </script>
 
 <!-- RSVP FORM -->
@@ -46,6 +54,12 @@
       box-shadow: 0 4px 24px rgba(26,26,46,0.08);
     ">
 
+      <!-- Honeypot: hidden from humans, bots will fill this -->
+      <div id="rsvp-website" aria-hidden="true">
+        <label>Website</label>
+        <input type="text" name="website" tabindex="-1" autocomplete="off" id="hp-website">
+      </div>
+
       <!-- Guest Name -->
       <div style="margin-bottom:20px;">
         <label style="display:block; font-size:0.7rem; font-weight:600; color:#8a8a9a; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">
@@ -73,16 +87,16 @@
         <label style="display:block; font-size:0.7rem; font-weight:600; color:#8a8a9a; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">
           Will you be attending? *
         </label>
-        <div style="display:flex; gap:12px;">
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
           <label id="opt-attending" onclick="selectStatus('Attending')" style="
-            flex:1; padding:14px; border:1.5px solid #e8e2da; border-radius:10px;
+            flex:1; min-width:140px; padding:14px; border:1.5px solid #e8e2da; border-radius:10px;
             cursor:pointer; text-align:center; transition:all 0.2s;
             font-size:0.88rem; font-weight:500; color:#1a1a2e;
           ">
             ✅ Attending
           </label>
           <label id="opt-not" onclick="selectStatus('Not Attending')" style="
-            flex:1; padding:14px; border:1.5px solid #e8e2da; border-radius:10px;
+            flex:1; min-width:140px; padding:14px; border:1.5px solid #e8e2da; border-radius:10px;
             cursor:pointer; text-align:center; transition:all 0.2s;
             font-size:0.88rem; font-weight:500; color:#1a1a2e;
           ">
@@ -120,7 +134,7 @@
       </button>
     </div><!-- /form-card -->
 
-    <!-- Success State (hidden until submitted) -->
+    <!-- Success State -->
     <div id="rsvp-success" style="
       display:none;
       background:#fff; border-radius:16px; padding:48px 32px;
@@ -137,11 +151,89 @@
       <div style="width:48px; height:1px; background:#c9a84c; margin:0 auto;"></div>
     </div>
 
+    <!-- Closed State — shown when the wedding date has already
+         passed (couple is marked Inactive). The form never appears
+         in this case, so a guest can't submit an RSVP for an event
+         that's already happened. -->
+    <div id="rsvp-closed" style="
+      display:none;
+      background:#fff; border-radius:16px; padding:48px 32px;
+      box-shadow:0 4px 24px rgba(26,26,46,0.08);
+      text-align:center;
+    ">
+      <div style="font-size:3rem; margin-bottom:16px;">💐</div>
+      <h3 style="font-family:'Cormorant Garamond',Georgia,serif; font-size:1.8rem; color:#1a1a2e; margin-bottom:8px;">
+        RSVPs Are Now Closed
+      </h3>
+      <p style="color:#8a8a9a; font-size:0.88rem; margin-bottom:20px;">
+        Thank you for your interest — this wedding has already taken place, so we're no longer accepting new responses.
+      </p>
+      <div style="width:48px; height:1px; background:#c9a84c; margin:0 auto;"></div>
+    </div>
+
   </div><!-- /container -->
 </section>
 
 <script>
-// ── Status toggle ──
+
+// ══════════════════════════════════════════════════════════════
+//  SESSION RESTORE
+//  If this guest already submitted in this browser session,
+//  show the success screen instantly without re-submitting.
+// ══════════════════════════════════════════════════════════════
+(function () {
+  var key   = 'rsvp_submitted_' + USER_ID;
+  var saved = sessionStorage.getItem(key);
+  if (saved) {
+    try {
+      var info = JSON.parse(saved);
+      document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('rsvp-form-card').style.display = 'none';
+        document.getElementById('rsvp-success').style.display   = 'block';
+        document.getElementById('rsvp-success-msg').textContent = info.msg || 'Your RSVP has been received.';
+      });
+    } catch (e) {}
+  } else {
+    // Guest hasn't already submitted in this session — check
+    // whether the invite is still open before they can fill the
+    // form at all. Runs on every fresh page load.
+    document.addEventListener('DOMContentLoaded', checkInviteIsOpen);
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════
+//  INVITE STATUS CHECK
+//  Asks the backend whether this wedding's date has already
+//  passed (couple marked "Inactive"). If so, the RSVP form is
+//  replaced with a "RSVPs Are Now Closed" message — guests can no
+//  longer submit a response for an event that's already happened.
+//  This is a courtesy UX check; the backend also enforces this
+//  independently in submitRsvp(), so it can't be bypassed by
+//  calling the API directly.
+// ══════════════════════════════════════════════════════════════
+async function checkInviteIsOpen() {
+  try {
+    var res = await fetch(SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'checkInviteStatus', userid: USER_ID })
+    });
+    var data = await res.json();
+    if (data.status === 'Inactive') {
+      document.getElementById('rsvp-form-card').style.display = 'none';
+      document.getElementById('rsvp-closed').style.display    = 'block';
+    }
+    // If the check fails or the wedding is still Active, the form
+    // (already visible by default) is simply left as-is — fail OPEN
+    // so a network hiccup never blocks a guest from RSVPing.
+  } catch (e) {
+    // Network error — fail open, leave the form visible as normal.
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  STATUS TOGGLE
+// ══════════════════════════════════════════════════════════════
 var selectedStatus = '';
 
 function selectStatus(val) {
@@ -152,56 +244,83 @@ function selectStatus(val) {
   var optN = document.getElementById('opt-not');
 
   if (val === 'Attending') {
-    optA.style.background      = '#d4edda';
-    optA.style.borderColor     = '#3d8c6e';
-    optA.style.color           = '#155724';
-    optN.style.background      = '#faf8f4';
-    optN.style.borderColor     = '#e8e2da';
-    optN.style.color           = '#1a1a2e';
+    optA.style.background  = '#d4edda';
+    optA.style.borderColor = '#3d8c6e';
+    optA.style.color       = '#155724';
+    optN.style.background  = '#faf8f4';
+    optN.style.borderColor = '#e8e2da';
+    optN.style.color       = '#1a1a2e';
   } else {
-    optN.style.background      = '#f8d7da';
-    optN.style.borderColor     = '#c0392b';
-    optN.style.color           = '#721c24';
-    optA.style.background      = '#faf8f4';
-    optA.style.borderColor     = '#e8e2da';
-    optA.style.color           = '#1a1a2e';
+    optN.style.background  = '#f8d7da';
+    optN.style.borderColor = '#c0392b';
+    optN.style.color       = '#721c24';
+    optA.style.background  = '#faf8f4';
+    optA.style.borderColor = '#e8e2da';
+    optA.style.color       = '#1a1a2e';
   }
 }
 
-// ── Submit ──
+// ══════════════════════════════════════════════════════════════
+//  SHOW SUCCESS HELPER
+// ══════════════════════════════════════════════════════════════
+function showSuccess(msg) {
+  sessionStorage.setItem('rsvp_submitted_' + USER_ID, JSON.stringify({ msg: msg }));
+  document.getElementById('rsvp-form-card').style.display = 'none';
+  document.getElementById('rsvp-success').style.display   = 'block';
+  document.getElementById('rsvp-success-msg').textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SUBMIT
+// ══════════════════════════════════════════════════════════════
 async function submitRsvpForm() {
-  var name     = document.getElementById('rsvp-name').value.trim();
-  var guests   = document.getElementById('rsvp-guests').value;
-  var status   = selectedStatus;
-  var message  = document.getElementById('rsvp-message').value.trim();
-  var errEl    = document.getElementById('rsvp-error');
-  var btn      = document.getElementById('rsvp-submit-btn');
+  var name    = document.getElementById('rsvp-name').value.trim();
+  var guests  = document.getElementById('rsvp-guests').value;
+  var status  = selectedStatus;
+  var message = document.getElementById('rsvp-message').value.trim();
+  var errEl   = document.getElementById('rsvp-error');
+  var btn     = document.getElementById('rsvp-submit-btn');
 
   errEl.style.display = 'none';
 
+  // ── BOT CHECK 1: Honeypot must be empty ──
+  if (document.getElementById('hp-website').value) {
+    showSuccess("We can't wait to celebrate with you!"); // Silent fake success for bots
+    return;
+  }
+
+  // ── BOT CHECK 2: Must take at least 3 seconds (humans need time to read & fill) ──
+  if (Date.now() - PAGE_LOAD_TIME < 3000) {
+    errEl.style.display  = 'block';
+    errEl.textContent    = 'Please take a moment to fill in the form.';
+    return;
+  }
+
+  // ── FIELD VALIDATION ──
   if (!name) {
     errEl.style.display = 'block';
-    errEl.textContent = 'Please enter your name.';
+    errEl.textContent   = 'Please enter your name.';
     return;
   }
   if (!status) {
     errEl.style.display = 'block';
-    errEl.textContent = 'Please select whether you are attending.';
+    errEl.textContent   = 'Please select whether you are attending.';
     return;
   }
   if (!guests || parseInt(guests) < 1) {
     errEl.style.display = 'block';
-    errEl.textContent = 'Please enter the number of guests.';
+    errEl.textContent   = 'Please enter the number of guests.';
     return;
   }
 
-  btn.textContent = 'Sending…';
-  btn.disabled = true;
+  // ── LOADING STATE ──
+  btn.textContent   = 'Sending…';
+  btn.disabled      = true;
   btn.style.opacity = '0.7';
 
   try {
     var res = await fetch(SCRIPT_URL, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action:       'submitRsvp',
@@ -215,27 +334,43 @@ async function submitRsvpForm() {
     var data = await res.json();
 
     if (data.success) {
+      // ── New successful submission ──
+      var msg = status === 'Attending'
+        ? "We can't wait to celebrate with you, " + name + '!'
+        : 'Thank you for letting us know, ' + name + '. You\'ll be missed!';
+      showSuccess(msg);
+
+    } else if (data.duplicate) {
+      // ── Already submitted (backend confirmed) ──
+      showSuccess('You have already submitted your RSVP. Thank you, ' + name + '!');
+
+    } else if (data.closed) {
+      // ── Backend rejected: wedding date has already passed ──
+      // Can happen if this tab was left open across midnight on the
+      // wedding day. Swap straight to the closed-state card instead
+      // of just showing an inline error, since the form is no
+      // longer usable at all.
       document.getElementById('rsvp-form-card').style.display = 'none';
-      var successEl = document.getElementById('rsvp-success');
-      successEl.style.display = 'block';
-      document.getElementById('rsvp-success-msg').textContent =
-        status === 'Attending'
-          ? 'We can\'t wait to celebrate with you, ' + name + '!'
-          : 'Thank you for letting us know, ' + name + '. You\'ll be missed!';
+      document.getElementById('rsvp-closed').style.display    = 'block';
+
     } else {
+      // ── Other backend error ──
       errEl.style.display = 'block';
-      errEl.textContent = 'Something went wrong: ' + (data.error || 'Please try again.');
-      btn.textContent = 'Send RSVP →';
-      btn.disabled = false;
-      btn.style.opacity = '1';
+      errEl.textContent   = 'Something went wrong: ' + (data.error || 'Please try again.');
+      btn.textContent     = 'Send RSVP →';
+      btn.disabled        = false;
+      btn.style.opacity   = '1';
     }
-  } catch(e) {
+
+  } catch (e) {
+    // ── Network / connection error ──
     errEl.style.display = 'block';
-    errEl.textContent = 'Connection error. Please try again shortly.';
-    btn.textContent = 'Send RSVP →';
-    btn.disabled = false;
-    btn.style.opacity = '1';
+    errEl.textContent   = 'Connection error. Please try again shortly.';
+    btn.textContent     = 'Send RSVP →';
+    btn.disabled        = false;
+    btn.style.opacity   = '1';
   }
 }
 </script>
-</body></html>
+</body>
+</html>
